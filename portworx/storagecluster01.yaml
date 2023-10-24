@@ -18,7 +18,7 @@ spec:
   cloudStorage:
     deviceSpecs:
     - type=gp3,size=100
-    journalDeviceSpec: auto
+    journalDeviceSpec: autoaw
   secretsProvider: k8s
   stork:
     enabled: true

@@ -1,6 +1,6 @@
 SERVICE_ACCOUNT=migration
 NAMESPACE=default
-SERVER=https://E36B2F2FA0EBABFFD7336C9AF5C99ED4.gr7.us-west-2.eks.amazonaws.com
+SERVER=https://DB70ADF77627B6A4985ADB05C3AD31CC.gr7.us-west-2.eks.amazonaws.com
 
 SERVICE_ACCOUNT_TOKEN_COUNT=$(kubectl -n ${NAMESPACE} get secret -o=jsonpath='{.items[?(@.metadata.annotations.kubernetes\.io/service-account\.name=="'${SERVICE_ACCOUNT}'")].metadata.name}' | wc -w)
 if [ ${SERVICE_ACCOUNT_TOKEN_COUNT} -gt 1 ]
