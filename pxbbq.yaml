@@ -123,7 +123,7 @@ webhooks:
     method: POST
     name: Integration_Tests
     retryCount: 3
-    uriTemplate: https://api.github.com/repos/ccrow42/armory-px-demo01/dispatches
+    uriTemplate: https://api.github.com/repos/ccrow42/armory-px-demo02/dispatches
   - agentIdentifier: cluster02
     bodyTemplate:
       inline: |-

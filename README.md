@@ -62,6 +62,7 @@ Sorry for the errant capital letter, too late to change it now!
 
 ### Setup Github Actions
 
+It is fine to copy these actions over. 
 
 ### Deploy PX-operator and portworx
 
