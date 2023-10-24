@@ -81,7 +81,7 @@ You can manually deploy by applying the appropriate manifest to the appropriate 
 
 ### Change the default storage class
 
-kubectl patch storageclass gp2 -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+`kubectl patch storageclass gp2 -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'`
 
 `kubectl patch storageclass px-db -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'`
 
@@ -97,16 +97,17 @@ Export the configuration files:
 
 NOTE: Be sure you are in the correct context!
 
-./setup/create-migration-config-esk01.sh > ~/eks01.config
+`./setup/create-migration-config-esk03.sh > ~/eks03.config`
 
+`./setup/create-migration-config-esk03.sh > ~/eks03.config`
 
 ### Pair the cluster
 
 Run the following (substituting your access and secret key):
 
 `storkctl create clusterpair stage \
---dest-kube-file ~/eks02.config \
---src-kube-file ~/eks01.config \
+--dest-kube-file ~/eks03.config \
+--src-kube-file ~/eks04.config \
 --dest-ep <PortworxAPI>:9001 \
 --src-ep <PortworxAPI>:9001 \
 --namespace portworx \
