@@ -1,0 +1,23 @@
+name: Deploy Portworx
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'portworx/storagecluster01.yaml' # Replace with the path to the file or directory you want to monitor
+      - 'portworx/storagecluster02.yaml'
+jobs:
+  build:
+    name: deploy from main
+    runs-on: ubuntu-latest
+    steps: 
+      - name: Checkout code
+        uses: actions/checkout@v2 
+      - name: Deployment
+        uses: armory/cli-deploy-action@main
+        with:
+          clientId: "${{ secrets.CDAAS_CLIENT_ID }}"
+          clientSecret:  "${{ secrets.CDAAS_CLIENT_SECRET }}" #Client secret that you created in the Armory Cloud Console that has been encrypted with GitHub's encrypted secrets.
+          path-to-file: "/portworx.yaml" # Path to the deployment file. For more information, see the Create a deployment file section.
+
+          
+          

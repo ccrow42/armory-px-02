@@ -1,0 +1,50 @@
+version: v1
+kind: kubernetes
+application: portworx
+
+targets:
+  prod-portworx:
+    account: cluster01
+    namespace: portworx
+    strategy: rolling
+  stage-portworx:
+    account: cluster02
+    namespace: portworx
+    strategy: rolling
+
+manifests:
+  - path: portworx/storagecluster01.yaml
+    targets: ['prod-portworx']
+  - path: portworx/storagecluster02.yaml
+    targets: ['stage-portworx']
+  
+strategies:
+  rolling:
+    canary:
+      steps:
+        - setWeight:
+            weight: 100
+analysis:  # Canary analysis queries and thresholds
+  defaultMetricProviderName: prod-prometheus
+  queries:
+    - name: avgCPUUsage-pass
+      upperLimit: 10000 #3
+      lowerLimit: 0
+      queryTemplate: >-
+        avg (avg_over_time(container_cpu_system_seconds_total{job="kubelet"}[{{armory.promQlStepInterval}}]) * on (pod)  group_left (annotation_app)
+        sum(kube_pod_annotations{job="kube-state-metrics",annotation_deploy_armory_io_replica_set_name="{{armory.replicaSetName}}"})
+        by (annotation_app, pod)) by (annotation_app) OR on() vector(0)
+        
+webhooks:
+  - agentIdentifier: cluster01
+    bodyTemplate:
+      inline: |-
+        { "cmd": "kubectl",
+          "arg": "delete ns {{armory.namespace}} --ignore-not-found=true -o name",
+          "callbackURL": "{{armory.callbackUri}}/callback"
+         }
+    method: POST
+    name: Delete namespace
+    networkMode: remoteNetworkAgent
+    retryCount: 3
+    uriTemplate: http://cmd-hook.armory-rna:8081/cmd

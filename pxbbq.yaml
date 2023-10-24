@@ -1,0 +1,169 @@
+version: v1
+kind: kubernetes
+application: pxbbq
+targets:
+  production:
+    account: cluster01
+    namespace: pxbbq
+    strategy: prod-canary
+    constraints:
+      dependsOn:
+      - staging
+  "Migrate Prod DB To Staging":
+    account: cluster01
+    namespace: portworx
+    strategy: rollingUpdate
+    constraints:
+      afterDeployment:
+      - runWebhook:
+          name: Wait for DB Migration
+      beforeDeployment:
+      - runWebhook:
+          name: Delete DB Migration
+      - runWebhook:
+          name: Scale Down Staging
+  staging:
+    account: cluster02
+    namespace: pxbbq
+    strategy: rollingUpdate
+    constraints:
+      dependsOn:
+      - "Migrate Prod DB To Staging"
+      afterDeployment:
+      - runWebhook:
+          name: Integration_Tests
+
+manifests:
+  - path: pxbbq-demo/mongodb.yaml
+    targets: [production,staging]
+  - path: pxbbq-demo/pxbbq.yaml
+    targets: [production,staging]
+  - path: pxbbq-demo/mongodb-prometheus-exporter.yml
+    targets: [production]
+  - path: pxbbq-demo/migrate.yaml
+    targets: ['Migrate Prod DB To Staging']
+    
+  
+strategies:
+  rollingUpdate:
+    canary:
+      steps:
+        - setWeight:
+            weight: 100
+        - exposeServices:
+            services:
+              - pxbbq-svc
+            ttl:
+              duration: 60
+              unit: MINUTES
+  prod-canary:
+    canary:
+      steps:
+        - exposeServices:
+            services:
+              - pxbbq-svc
+        - setWeight:
+            weight: 50
+        - analysis:
+            interval: 10
+            units: seconds
+            numberOfJudgmentRuns: 1
+            rollForwardMode: manual
+            queries:
+            - avgCPUUsage-pass
+            - mongodb-warnings
+        - setWeight:
+            weight: 100
+        - analysis:
+            interval: 10
+            units: seconds
+            rollBackMode: manual
+            numberOfJudgmentRuns: 1
+            queries:
+            - avgCPUUsage-pass
+
+            
+webhooks: 
+  - agentIdentifier: cluster01
+    bodyTemplate:
+      inline: |-
+        { "cmd": "kubectl",
+          "arg": "wait -n={{armory.namespace}} migration/migrate01 --for=jsonpath={.status.stage}=Final --timeout=10m",
+          "callbackURL": "{{armory.callbackUri}}/callback"
+         }
+      # todo: switch to {.status.status}=Successful 
+    method: POST
+    name: Wait for DB Migration
+    networkMode: remoteNetworkAgent
+    retryCount: 3
+    uriTemplate: http://cmd-hook.armory-rna:8081/cmd
+  - agentIdentifier: cluster01
+    bodyTemplate:
+      inline: |-
+        { "cmd": "kubectl",
+          "arg": "delete -n={{armory.namespace}} migration/migrate01 --ignore-not-found=true -o name",
+          "callbackURL": "{{armory.callbackUri}}/callback"
+         }
+    method: POST
+    name: Delete DB Migration
+    networkMode: remoteNetworkAgent
+    retryCount: 3
+    uriTemplate: http://cmd-hook.armory-rna:8081/cmd
+  - bodyTemplate:
+      inline: |-
+        { "event_type": "integrationTests", "client_payload": {
+            "callbackUri": "{{armory.callbackUri}}/callback"
+            }
+        }
+    headers:
+      - key: Authorization
+        value: token {{secrets.Github_token}}
+      - key: Content-Type
+        value: application/json
+    method: POST
+    name: Integration_Tests
+    retryCount: 3
+    uriTemplate: https://api.github.com/repos/ccrow42/armory-px-demo01/dispatches
+  - agentIdentifier: cluster02
+    bodyTemplate:
+      inline: |-
+        { "cmd": "kubectl",
+          "arg": "scale -n=pxbbq statefulset mongo --replicas=0",
+          "callbackURL": "{{armory.callbackUri}}/callback"
+         }
+         #scale -n=pxbbq rs -l app=pxbbq-web --replicas=0
+    method: POST
+    name: Scale Down Staging
+    networkMode: remoteNetworkAgent
+    retryCount: 3
+    uriTemplate: http://cmd-hook.armory-rna:8081/cmd
+    
+analysis:  # Canary analysis queries and thresholds
+  defaultMetricProviderName: prod-prometheus
+  queries:
+    - name: avgCPUUsage-pass
+      upperLimit: 10000.0 #3
+      lowerLimit: 0.0
+      queryTemplate: >-
+        avg (avg_over_time(container_cpu_system_seconds_total{job="kubelet"}[{{armory.promQlStepInterval}}]) * on (pod)  group_left (annotation_app)
+        sum(kube_pod_annotations{job="kube-state-metrics",annotation_deploy_armory_io_replica_set_name="{{armory.replicaSetName}}"})
+        by (annotation_app, pod)) by (annotation_app) OR on() vector(0)
+    - name: mongodb-warnings
+      upperLimit: 0.0
+      lowerLimit: 0.0
+      queryTemplate: >-
+        avg (avg_over_time(mongodb_asserts_total{type="warning"}[{{armory.promQlStepInterval}}]) * on (pod)  group_left (annotation_app)
+        sum(kube_pod_annotations{job="kube-state-metrics",annotation_deploy_armory_io_replica_set_name="{{armory.replicaSetName}}"})
+        by (annotation_app, pod)) by (annotation_app) OR on() vector(0)
+    - name: mongodb-warnings-fail
+      upperLimit: 0.0
+      lowerLimit: 0.0
+      queryTemplate: >-
+        avg (avg_over_time(mongodb_asserts_total{type="warning"}[{{armory.promQlStepInterval}}]) * on (pod)  group_left (annotation_app)
+        sum(kube_pod_annotations{job="kube-state-metrics",annotation_deploy_armory_io_replica_set_name="{{armory.replicaSetName}}"})
+        by (annotation_app, pod)) by (annotation_app) OR on() vector({{ armory.startTimeEpochSeconds }})
+#update4
+
+
+deploymentConfig:
+  keepDeploymentObject: true

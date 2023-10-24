@@ -1,0 +1,24 @@
+version: v1
+kind: kubernetes
+application: px-operator
+
+targets:
+  prod-portworx:
+    account: cluster01
+    namespace: portworx
+    strategy: rolling
+  stage-portworx:
+    account: cluster02
+    namespace: portworx
+    strategy: rolling
+
+manifests:
+  - path: portworx/px-operator.yaml
+    targets: ['prod-portworx','stage-portworx']
+
+strategies:
+  rolling:
+    canary:
+      steps:
+        - setWeight:
+            weight: 100
